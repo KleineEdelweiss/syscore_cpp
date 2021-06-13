@@ -82,9 +82,9 @@ AbstractProcessor :: AbstractProcessor() {
 
 // Destructor
 AbstractProcessor :: ~AbstractProcessor() {
-  delete this->pkg;
-  this->pkg = NULL;
-  lib_deinitialize();
+  count--; // Decrement the count of watchers
+  this->pkg = NULL; // NULL this pointer
+  lib_deinitialize(); // All the objects are deleted on de-init
 } // End destructor
 
 // Load in the current package's processors

@@ -49,7 +49,7 @@ bool AbstractProcessor :: lib_initialize() {
       packages.push_back(item);
     }
   }
-  return lib_state;
+  return lib_state; // Return if the library was initialized
 } // End library initialization
 
 /* 
@@ -63,7 +63,7 @@ void AbstractProcessor :: lib_deinitialize() {
       // Free the item
       delete *itr;
     }
-    //for (auto p : packages) { delete p; }
+    // Clean up the resources
     packages.clear();
     cpuinfo_deinitialize();
   }
@@ -115,12 +115,9 @@ int AbstractProcessor :: curr_count() {
 
 // Load in the current package's processors
 std::string AbstractProcessor :: curr_name() {
-  char *arr = NULL;
+  std::string name = "";
   if (lib_initialize()) {
-    std::string name = std::string(this->pkg->name);
-    //int len = strlen(this->pkg->name); // CPUINFO_PACKAGE_NAME_MAX
-    //strcpy(name, this->pkg->name);
-    return name;
+     name = std::string(this->pkg->name);
   } else { init_fatal(); }
-  return arr;
+  return name;
 } // End current processor package name

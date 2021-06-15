@@ -1,4 +1,4 @@
-// include/syscore.cpp
+// lib/syscore.cpp
 
 // Core libraries
 #include <proc/procps.h>
@@ -13,14 +13,31 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <set>
 #include <string>
+#include <typeinfo>
 #include <vector>
 
 // This header
 #include "syscore.hpp"
 
+// Local includes
+#include "absproc.hpp"
+
+// SysCore namespace
+namespace SysCore {
+  // Register a class that is supposed to store static
+  // references to the library.
+  /*bool reg_class(std::type_info obj) {
+    int prev = reg_objects.size();
+    reg_objects.insert(obj);
+    return(prev < reg_objects.size());
+  }*/ // End class registration
+} // End SysCore namespace
+
+/*
 // Define the static class variables
-int  AbstractProcessor :: count;
+int  AbstractProcessor :: watchers;
 bool  AbstractProcessor :: lib_state;
 std::vector<const cpuinfo_package *> AbstractProcessor :: packages;
 
@@ -31,33 +48,32 @@ void AbstractProcessor :: init_fatal() {
     << std::endl << "Aborting" << std::endl;
   abort();
 } // End fatal error message and abort
-
+*/
 /*
   * Initialize the library -- this should be
   * checked for all instances on creation.
   *
   * If the library is initialized, just return true.
   */
-bool AbstractProcessor :: lib_initialize() {
+/*bool AbstractProcessor :: lib_initialize() {
   // Only init, if not already done
   if (!lib_state) {
     lib_state = cpuinfo_initialize();
-    // Get a package count
-    int pkg_cnt = cpuinfo_get_packages_count();
-    for (int i = 0; i < pkg_cnt; i++) {
+    // Fill in the packages
+    for (int i = 0; i < cpuinfo_get_packages_count(); i++) {
       const struct cpuinfo_package *item = cpuinfo_get_package(i);
       packages.push_back(item);
     }
   }
   return lib_state; // Return if the library was initialized
 } // End library initialization
-
+*/
 /* 
   * De-initialize the library and clear all the
   * existing static structs stored in the vectors.
   */
-void AbstractProcessor :: lib_deinitialize() {
-  if (lib_state && count < 1) {
+/*void AbstractProcessor :: lib_deinitialize() {
+  if (lib_state && watchers < 1) {
     for (std::vector<const cpuinfo_package *>::iterator itr = packages.begin();
       itr != packages.end(); ++itr) {
       // Free the item
@@ -76,13 +92,19 @@ size_t AbstractProcessor :: count_pkgs() { return packages.size(); }
 AbstractProcessor :: AbstractProcessor() {
   if (lib_initialize()) {
     this->pkg = NULL;
-    count++;
+    watchers++;
   } else { init_fatal(); }
 } // End constructor
 
 // Destructor
 AbstractProcessor :: ~AbstractProcessor() {
-  count--; // Decrement the count of watchers
+  watchers--; // Decrement the count of watchers
+  // Clear all the processors
+  while (this->processors.size() > 0) {
+    this->processors.pop_back();
+  }
+  this->processors.clear();
+  // End delete processors for this package
   this->pkg = NULL; // NULL this pointer
   lib_deinitialize(); // All the objects are deleted on de-init
 } // End destructor
@@ -105,6 +127,24 @@ int AbstractProcessor :: load_pkg(int index) {
   return 0;
 } // End current processor package loader
 
+// Load in the processors for a package
+int AbstractProcessor :: load_procs() {
+  if (lib_initialize()) {
+    int units = 0;
+    // Fill in the processors on the package
+    for (int i = 0; i < cpuinfo_get_processors_count(); i++) {
+      const struct cpuinfo_processor *item = cpuinfo_get_processor(i);
+      // If the indices for the logical units match, add
+      if (item->package == this->pkg) {
+        processors.push_back(item); // Add it to instance vector
+        units++; // Increment the counter
+      } else { item = NULL; }
+    } // End fill loop
+    return units; // Return the counter of units
+  } else { init_fatal(); }
+  return 0;
+} // End processor loader
+
 // Count the current package's logical processors
 int AbstractProcessor :: curr_count() {
   if (lib_initialize()) {
@@ -121,3 +161,4 @@ std::string AbstractProcessor :: curr_name() {
   } else { init_fatal(); }
   return name;
 } // End current processor package name
+*/

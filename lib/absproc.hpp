@@ -1,4 +1,6 @@
 // lib/absproc.hpp
+// BACKUP: 2021-Jun-20 @ 03:36:35
+
 #ifndef _syscore_absproc_hpp
 #define _syscore_absproc_hpp
 
@@ -10,17 +12,28 @@
 #include <cpufreq.h>
 
 // Other libraries needed
+#include <map>
 #include <string>
+#include <tuple>
 #include <vector>
 
 // Local libraries
-#include "abscluster.hpp"
-#include "abscore.hpp"
-#include "abslogi.hpp"
-//#include "syscore.hpp"
+//#include "abscluster.hpp"
+//#include "abscore.hpp"
+//#include "abslogi.hpp"
 
 // Append AbsProc to SysCore namespace
 namespace SysCore {
+  // Frequency table entry
+  typedef struct {
+    uint32_t index; // Index of logical unit on Linux
+    uint64_t freq_clus; // Frequency of the cluster
+    uint64_t freq_core; // Frequency of the core
+  } freq_entry_t;
+  
+  // Frequency table itself
+  typedef std::map<int, freq_entry_t> freq_tab_t;
+  
   /*
    * AbsProc is an abstract processor / CPU
    * class to handle accessing of utilization
@@ -28,57 +41,50 @@ namespace SysCore {
    * 
    * This class combines a wrapping of cpuinfo_package,
    * cpuinfo_core, cpuinfo_cluster, and cpuinfo_processor, and
-   * it is instantiated from a cpuinfo_package.
+   * it is instantiated from an index number to a socket, which is
+   * passed from the SysCache initiator -- it will have obtained
+   * indices from a count of packages.
    */
   class AbsProc {
   private:
-    // List of packages
-    static std::vector<AbsProc> packages;
-    
-    // Library
-    static bool lib_init();
-    static void lib_deinit();
-    static void init_fatal();
-    
     // Load components by package number
-    bool load_clusters(uint32_t, std::vector<AbsCluster>*);
-    bool load_cores(uint32_t, std::vector<AbsCore>*);
-    bool load_processors(uint32_t, std::vector<AbsLogi>*);
+    bool load_clusters();
+    bool load_cores();
+    bool load_processors();
     
     // Instance methods and variables
-    std::string name;
-    std::string vendor;
-    // First logical processor, physical core, or cluster
-    // on this package.
-    uint logi_start, core_start, clust_start;
-    // Count of all the local processors, cores, and
-    // clusters on this package
-    uint logi_cnt, core_cnt, clust_cnt;
+    const cpuinfo_package *pkg;
     
-    // Lists of logi processors, clusters, and core on this package
-    std::vector<SysCore::AbsLogi> l_units;
-    std::vector<SysCore::AbsCore> l_cores;
-    std::vector<SysCore::AbsCluster> l_clus;
+    // Lists of logical processors, clusters, and core on this package
+    std::vector<const cpuinfo_processor*> l_units;
+    std::vector<const cpuinfo_core*> l_cores;
+    std::vector<const cpuinfo_cluster*> l_clus;
+    
+    // Frequency update table
+    freq_tab_t fqtab;
   protected:
     // Fill methods -- attach components to the package
     bool load();
-  public:
-    static AbsProc const get(uint); // Get a processor
-    static uint load_units(); // Populate the units
-    static uint count_units(); // Count the units loaded
     
-    // Constructor will assemble a processor with a passed
-    // cpuinfo_package object from the C side.
-    AbsProc(const cpuinfo_package*);
+    // Update the frequencies of the parts
+    bool update_frequencies();
+  public:
+    AbsProc(uint32_t); // Constructor takes package index
     ~AbsProc(); // Destructor
     
-    // Count the number of processors, clusters, or core
-    uint count_procs(); // Logical processors (hardware threads)
-    uint count_cores(); // Physical cores
-    uint count_clusters(); // Logical processor groups
+    // Count the number of processors, clusters, or cores
+    uint count_procs() const; // Logical processors (hardware threads)
+    uint count_cores() const; // Physical cores
+    uint count_clusters() const; // Logical processor groups
+    
+    // Update the data
+    bool update();
+    
+    // Return a copy of the frequency data
+    const freq_tab_t frequencies();
     
     // Name of the package
-    std::string get_name();
+    std::string name() const;
   }; // End AbsProc
 } // End namespace appendent
 #endif

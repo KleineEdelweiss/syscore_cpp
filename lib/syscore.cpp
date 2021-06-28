@@ -9,12 +9,15 @@
 
 // Other libraries needed
 #include <csignal>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <set>
 #include <string>
+#include <tuple>
 #include <typeinfo>
 #include <vector>
 
@@ -33,132 +36,193 @@ namespace SysCore {
     reg_objects.insert(obj);
     return(prev < reg_objects.size());
   }*/ // End class registration
-} // End SysCore namespace
-
-/*
-// Define the static class variables
-int  AbstractProcessor :: watchers;
-bool  AbstractProcessor :: lib_state;
-std::vector<const cpuinfo_package *> AbstractProcessor :: packages;
-
-// Fatal error message for if the library could not be initialized.
-// Aborts program execution.
-void AbstractProcessor :: init_fatal() {
-  std::cerr << "::FATAL ERROR (AbstractProcessor):: Could not initialize 'cpuinfo'"
-    << std::endl << "Aborting" << std::endl;
-  abort();
-} // End fatal error message and abort
-*/
-/*
-  * Initialize the library -- this should be
-  * checked for all instances on creation.
-  *
-  * If the library is initialized, just return true.
-  */
-/*bool AbstractProcessor :: lib_initialize() {
-  // Only init, if not already done
-  if (!lib_state) {
-    lib_state = cpuinfo_initialize();
-    // Fill in the packages
-    for (int i = 0; i < cpuinfo_get_packages_count(); i++) {
-      const struct cpuinfo_package *item = cpuinfo_get_package(i);
+  
+  // Static variables
+  // The cache instance
+  SysCache* SysCache :: cache = 0;
+  
+  // Max cores
+  int SysCache :: end_of_cores = 0;
+  
+  // Static methods
+  /*
+   * Initialize the library -- this should be
+   * checked for all components.
+   *
+   * If the library is initialized, just return true.
+   */
+  bool SysCache :: lib_init() {
+    // Initializing multiple times doesn't seem
+    // to cause any issues.
+    // Return if the library can be initialized.
+    return cpuinfo_initialize();
+  } // End library initialization
+  
+  // Fatal error message for if the library could not be initialized.
+  // Aborts program execution.
+  void SysCache :: init_fatal() {
+    std::cerr << "::FATAL ERROR (SysCache):: Could not initialize 'cpuinfo'"
+      << std::endl << "Aborting" << std::endl;
+    abort();
+  } // End fatal error message and abort
+  
+  /* 
+   * De-initialize the library and clear all the
+   * existing static structs stored in the vectors.
+   */
+  void SysCache :: lib_deinit() {
+    // Only de-init, if there's no packages left, when called.
+    if (cache->packages.size() < 1) {
+      // Clean up the resources
+      cache->packages.clear();
+      cpuinfo_deinitialize();
+    }
+  } // End de-init method
+  
+  // Constructor -- initialize the object as a Singleton
+  SysCache :: SysCache() {
+    if (lib_init()) {
+      load();
+    } else { init_fatal(); }
+  } // End SysCache constructor
+  
+  // Destructor
+  SysCache :: ~SysCache() {
+    //cache->packages.clear();
+    //delete packages;
+    //packages = NULL;
+  } // Destructor
+  
+  /*
+   * Return the instance, if one exists.
+   * If it does not, create it and return it.
+   */
+  SysCache* SysCache :: instance() {
+    // Create, if not exists
+    //std::cout << "Getting instance" << std::endl;
+    if (!cache) {
+      //std::cout << "Instance was previously NULL" << std::endl;
+      cache = new SysCache;
+      //std::cout << "New instance created" << std::endl;
+    }
+    //std::cout << "Returning cache" << std::endl;
+    return cache; // Return it back
+  } // End instance retriever
+  
+  /*
+   * Private load method initializes the cache
+   * with the abstract processor units.
+   */
+  bool SysCache :: load() {
+    int nr_packs = cpuinfo_get_packages_count();
+    // If there are not detected packages (should not happen)
+    if (nr_packs < 1) {
+      throw("::ERROR SysCache:: Failed to load any packages. This may " \
+        "be due to unsupported hardware. This library will not abort, " \
+        "however, but it cannot report on the CPU packages on your system.\n");
+      return false;
+    }
+    // Add each package to the instance's storage vector
+    for (int i = 0; i < nr_packs; i++) {
+      AbsProc item = AbsProc(i);
       packages.push_back(item);
     }
-  }
-  return lib_state; // Return if the library was initialized
-} // End library initialization
-*/
-/* 
-  * De-initialize the library and clear all the
-  * existing static structs stored in the vectors.
-  */
-/*void AbstractProcessor :: lib_deinitialize() {
-  if (lib_state && watchers < 1) {
-    for (std::vector<const cpuinfo_package *>::iterator itr = packages.begin();
-      itr != packages.end(); ++itr) {
-      // Free the item
-      delete *itr;
+    load_proc();
+    return true;
+  } // End load method
+  
+  // Return a constant processor
+  const AbsProc& SysCache :: get(uint idx) {
+    SysCache *c = instance();
+    // Check if cache could be retrieved
+    if (!c) {
+      throw("::FATAL ERROR (SysCache):: Cannot retrieve cache! Aborting.");
+      abort();
     }
-    // Clean up the resources
-    packages.clear();
-    cpuinfo_deinitialize();
-  }
-} // End library de-initialization
-
-// Count the packages
-size_t AbstractProcessor :: count_pkgs() { return packages.size(); }
-
-// Constructor
-AbstractProcessor :: AbstractProcessor() {
-  if (lib_initialize()) {
-    this->pkg = NULL;
-    watchers++;
-  } else { init_fatal(); }
-} // End constructor
-
-// Destructor
-AbstractProcessor :: ~AbstractProcessor() {
-  watchers--; // Decrement the count of watchers
-  // Clear all the processors
-  while (this->processors.size() > 0) {
-    this->processors.pop_back();
-  }
-  this->processors.clear();
-  // End delete processors for this package
-  this->pkg = NULL; // NULL this pointer
-  lib_deinitialize(); // All the objects are deleted on de-init
-} // End destructor
-
-// Load in the current package's processors
-int AbstractProcessor :: load_pkg(int index) {
-  if (lib_initialize()) {
-    int cnt = count_pkgs();
-    if ((index <= cnt) && (index > 0)) {
-      this->pkg = packages.at(index - 1);
-      return 0;
+    
+    // Return the requested package
+    if (idx < c->packages.size()) {
+      return(c->packages.at(idx));
     } else {
-      std::cerr << "::WARNING (AbstractProcessor):: Index passed "
-        << index << " exceeds package count of the system." << std::endl
-        << "  Please change to value not exceeding: " << cnt
-        << std::endl << "  No update was made to instance!!" << std::endl;
-      return -1;
+      throw("::ERROR (SysCache):: Package requested is out of range.");
     }
-  } else { init_fatal(); }
-  return 0;
-} // End current processor package loader
-
-// Load in the processors for a package
-int AbstractProcessor :: load_procs() {
-  if (lib_initialize()) {
-    int units = 0;
-    // Fill in the processors on the package
-    for (int i = 0; i < cpuinfo_get_processors_count(); i++) {
-      const struct cpuinfo_processor *item = cpuinfo_get_processor(i);
-      // If the indices for the logical units match, add
-      if (item->package == this->pkg) {
-        processors.push_back(item); // Add it to instance vector
-        units++; // Increment the counter
-      } else { item = NULL; }
-    } // End fill loop
-    return units; // Return the counter of units
-  } else { init_fatal(); }
-  return 0;
-} // End processor loader
-
-// Count the current package's logical processors
-int AbstractProcessor :: curr_count() {
-  if (lib_initialize()) {
-    return this->pkg->processor_count;
-  } else { init_fatal(); }
-  return 0;
-} // End current processor package's logical core count
-
-// Load in the current package's processors
-std::string AbstractProcessor :: curr_name() {
-  std::string name = "";
-  if (lib_initialize()) {
-     name = std::string(this->pkg->name);
-  } else { init_fatal(); }
-  return name;
-} // End current processor package name
-*/
+  } // End getter for a specific processor
+  
+  // Count of the packages cached
+  uint SysCache :: count() {
+    SysCache *c = instance();
+    //return -1;
+    return c->packages.size();
+  } // End package count
+  
+  /* 
+   * Load the proc file data.
+   * 
+   * On load, this will store the std::string name of the core in
+   * prev_data, as a key. The key will be attached to an std::tuple
+   * of LONG values. These longs represent the last state read in,
+   * and they consist of (LAST_TOTAL, LAST_IDLE, LAST_PERCENTAGE).
+   * 
+   * During subsequent reads, the process will follow as thus:
+   * 1) Read the previous values
+   * 2) Read in the new values stream
+   * 3) Generate the current usage levels
+   * 4) Store the usage levels in the cache
+   * 5) Update the previous values to the new values
+   */
+  bool SysCache :: load_proc() {
+    std::ios::sync_with_stdio(false);
+    std::cin.tie(NULL);
+    std::cout.tie(NULL);
+    std::cout << std::fixed << std::setprecision(0);
+    
+    std::ifstream fd;
+    std::string sub;
+    std::string name;
+    double user, nice, system, idle, iowait, irq, softirq,
+      steal, guest, guest_nice;
+    double total;
+    double avg;
+    int count = 0;
+    fd.open(PROC_FILE);
+    while (fd >> name >> user >> nice >> system >> idle >> iowait
+      >> irq >> softirq >> steal >> guest >> guest_nice
+    ) {
+      sub = name.substr(0,3);
+      if (sub != "cpu") { break; }
+      total = user + nice + system + idle + iowait + irq + softirq
+        + steal + guest + guest_nice;
+      avg = ((total - idle) / total) * 100;
+      std::cout << "ROW : " << name << " " << user << " " << nice << " "
+        << system << " " << idle << " " << iowait << " " << irq << " "
+        << softirq << " " << steal << " " << guest << " " << guest_nice << "\n"
+        << " total: " << total << "\n---\n";
+      
+      //float perc = ;
+      usage_t data = std::make_tuple(total, idle, 0.0);
+      prev_data.insert_or_assign(name, data);
+      count++;
+    }
+    fd.close();
+    std::cout << "Total lines with core data in proc file: " << count << "\n";
+    end_of_cores = count;
+    return true;
+  } // End proc file loader
+  
+  // Update the cache data
+  bool SysCache :: update() {
+    // Count the cores in proc file
+    if (end_of_cores < 1) {
+      
+    }
+    
+    return true;
+  } // End update method
+  
+  // Read in the stat file and update the packages
+  bool SysCache :: stat() {
+    SysCache *c = instance();
+    //load_proc();
+    return true;
+  } // End stat reader
+} // End SysCore namespace

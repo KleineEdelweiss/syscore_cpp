@@ -61,8 +61,8 @@ namespace SysCore {
   // Fatal error message for if the library could not be initialized.
   // Aborts program execution.
   void SysCache :: init_fatal() {
-    std::cerr << "::FATAL ERROR (SysCache):: Could not initialize 'cpuinfo'"
-      << std::endl << "Aborting" << std::endl;
+    std::cerr << "::FATAL ERROR (SysCache):: Could not initialize 'cpuinfo'\n"
+      << "Aborting\n";
     abort();
   } // End fatal error message and abort
   
@@ -88,9 +88,8 @@ namespace SysCore {
   
   // Destructor
   SysCache :: ~SysCache() {
-    //cache->packages.clear();
-    //delete packages;
-    //packages = NULL;
+    SysCache *c = instance();
+    c->packages.clear();
   } // Destructor
   
   /*
@@ -174,32 +173,44 @@ namespace SysCore {
     std::ios::sync_with_stdio(false);
     std::cin.tie(NULL);
     std::cout.tie(NULL);
-    std::cout << std::fixed << std::setprecision(0);
     
     std::ifstream fd;
     std::string sub;
     std::string name;
     double user, nice, system, idle, iowait, irq, softirq,
       steal, guest, guest_nice;
-    double total;
-    double avg;
+    double total, avg;
     int count = 0;
     fd.open(PROC_FILE);
     while (fd >> name >> user >> nice >> system >> idle >> iowait
       >> irq >> softirq >> steal >> guest >> guest_nice
     ) {
+      std::cout << std::fixed << std::setprecision(0);
+      avg = 0.0; // Reset the average
       sub = name.substr(0,3);
       if (sub != "cpu") { break; }
       total = user + nice + system + idle + iowait + irq + softirq
         + steal + guest + guest_nice;
-      avg = ((total - idle) / total) * 100;
       std::cout << "ROW : " << name << " " << user << " " << nice << " "
         << system << " " << idle << " " << iowait << " " << irq << " "
         << softirq << " " << steal << " " << guest << " " << guest_nice << "\n"
         << " total: " << total << "\n---\n";
       
-      //float perc = ;
-      usage_t data = std::make_tuple(total, idle, 0.0);
+      auto old = prev_data.find(name);
+      if (old != prev_data.end()) {
+        std::cout << std::fixed << std::setprecision(2);
+        auto odat = old->second;
+        long otot = std::get<0>(odat);
+        long oidl = std::get<1>(odat);
+        long deltot = total - otot;
+        long delidl = idle - oidl;
+        std::cout << "(total, idle, deltot, delidl) = "
+          << total << ", " << idle << ", " << deltot << ", "
+          << delidl << "\n";
+        avg = ((double(deltot) - double(delidl)) / double(deltot)) * 100;
+        std::cout << "Average use: " << avg << "%\n";
+      }
+      usage_t data = std::make_tuple(total, idle, avg);
       prev_data.insert_or_assign(name, data);
       count++;
     }
@@ -222,7 +233,7 @@ namespace SysCore {
   // Read in the stat file and update the packages
   bool SysCache :: stat() {
     SysCache *c = instance();
-    //load_proc();
+    c->load_proc();
     return true;
   } // End stat reader
 } // End SysCore namespace

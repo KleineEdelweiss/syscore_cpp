@@ -23,12 +23,8 @@
 #define PROC_FILE "/proc/stat"
 #define PROC_FMT "%s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu"
 
-#define PROC_FILE "/proc/stat"
-
 // Namespace to store system devices
 namespace SysCore {
-  // Methods
-  //bool reg_class(std::type_info);
   /* 
    * PIMPL class to manage the operations
    * without direct access to the deeper backend.

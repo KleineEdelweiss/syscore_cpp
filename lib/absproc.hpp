@@ -17,11 +17,6 @@
 #include <tuple>
 #include <vector>
 
-// Local libraries
-//#include "abscluster.hpp"
-//#include "abscore.hpp"
-//#include "abslogi.hpp"
-
 // Append AbsProc to SysCore namespace
 namespace SysCore {
   // Frequency table entry

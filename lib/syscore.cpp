@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <set>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <typeinfo>
@@ -29,14 +30,6 @@
 
 // SysCore namespace
 namespace SysCore {
-  // Register a class that is supposed to store static
-  // references to the library.
-  /*bool reg_class(std::type_info obj) {
-    int prev = reg_objects.size();
-    reg_objects.insert(obj);
-    return(prev < reg_objects.size());
-  }*/ // End class registration
-  
   // Static variables
   // The cache instance
   SysCache* SysCache :: cache = 0;
@@ -170,17 +163,25 @@ namespace SysCore {
    * 5) Update the previous values to the new values
    */
   bool SysCache :: load_proc() {
+    // Optimizations
     std::ios::sync_with_stdio(false);
     std::cin.tie(NULL);
     std::cout.tie(NULL);
     
+    // File
     std::ifstream fd;
-    std::string sub;
-    std::string name;
+    
+    // Data components
+    std::string sub, name;
     double user, nice, system, idle, iowait, irq, softirq,
       steal, guest, guest_nice;
     double total, avg;
+    int pindex;
+    
+    // Counter
     int count = 0;
+    
+    // Stream read loop
     fd.open(PROC_FILE);
     while (fd >> name >> user >> nice >> system >> idle >> iowait
       >> irq >> softirq >> steal >> guest >> guest_nice
@@ -189,19 +190,30 @@ namespace SysCore {
       avg = 0.0; // Reset the average
       sub = name.substr(0,3);
       if (sub != "cpu") { break; }
+      
+      // Generate the total value of this parse timings
       total = user + nice + system + idle + iowait + irq + softirq
         + steal + guest + guest_nice;
+        
+      // DEBUG
       std::cout << "ROW : " << name << " " << user << " " << nice << " "
         << system << " " << idle << " " << iowait << " " << irq << " "
         << softirq << " " << steal << " " << guest << " " << guest_nice << "\n"
         << " total: " << total << "\n---\n";
       
-      auto old = prev_data.find(name);
+      // Set the index of the processor
+      if (name.length() > 3) { pindex = std::stoi(name.substr(3)); }
+      else { pindex = -1; } // -1 will be used for the average
+      std::cout << "Index for this processor will be: " << pindex << "\n";
+      
+      // See if there was a previous entry with this key
+      // Change this to use the pindex, later...
+      auto old = prev_data.find(pindex);
       if (old != prev_data.end()) {
         std::cout << std::fixed << std::setprecision(2);
         auto odat = old->second;
-        long otot = std::get<0>(odat);
-        long oidl = std::get<1>(odat);
+        long otot = std::get<1>(odat);
+        long oidl = std::get<2>(odat);
         long deltot = total - otot;
         long delidl = idle - oidl;
         std::cout << "(total, idle, deltot, delidl) = "
@@ -210,11 +222,11 @@ namespace SysCore {
         avg = ((double(deltot) - double(delidl)) / double(deltot)) * 100;
         std::cout << "Average use: " << avg << "%\n";
       }
-      usage_t data = std::make_tuple(total, idle, avg);
-      prev_data.insert_or_assign(name, data);
+      usage_t data = std::make_tuple(name, total, idle, avg);
+      prev_data.insert_or_assign(pindex, data);
       count++;
     }
-    fd.close();
+    fd.close(); // Clean up file descriptor
     std::cout << "Total lines with core data in proc file: " << count << "\n";
     end_of_cores = count;
     return true;

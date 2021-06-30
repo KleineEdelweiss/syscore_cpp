@@ -43,8 +43,8 @@ namespace SysCore {
     std::vector<AbsProc> packages;
     
     // Core ID mapped to (TOTAL, IDLE, PERCENTAGE) of last value
-    typedef std::tuple<long, long, float> usage_t;
-    std::map<std::string, usage_t> prev_data;
+    typedef std::tuple<std::string, long, long, float> usage_t;
+    std::map<int, usage_t> prev_data;
     
     // Maximum line to read
     static int end_of_cores;
